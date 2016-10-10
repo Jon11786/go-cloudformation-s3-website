@@ -88,14 +88,14 @@ func getCommandFlags() (*string, *string) {
 
 func check(e error) {
 	if e != nil {
-		panic(e)
+		panic(e.Error())
 	}
 }
 
 func getTemplateFileAsString() string {
 	content, err := ioutil.ReadFile("./cf-stack.template") // just pass the file name
 	if err != nil {
-		fmt.Print(content)
+		fmt.Print(err.Error())
 	}
 
 	str := string(content)
