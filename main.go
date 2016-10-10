@@ -16,10 +16,7 @@ func main() {
 
 	sess, err := session.NewSession()
 
-	if err != nil {
-		fmt.Println("failed to create session,", err)
-		return
-	}
+	check(err)
 
 	svc := cloudformation.New(sess, &aws.Config{Region: aws.String(*region)})
 
@@ -29,38 +26,40 @@ func main() {
 	}
 	resp, err := svc.DescribeStacks(params)
 
+	templateString := getTemplateFileAsString()
+
 	if err != nil {
 		// Print the error, cast err to awserr.Error to get the Code and
 		// Message from an error.
 		createStack()
 
-		b, err := ioutil.ReadFile("./cf-stack.template") // just pass the file name
-		if err != nil {
-			fmt.Print(err)
-		}
-
-		str := string(b)
-
 		params := &cloudformation.CreateStackInput{
 			StackName: aws.String(*stack), // Required
-			TemplateBody:      aws.String(str),
+			TemplateBody:      aws.String(templateString),
 		}
 		resp2, err2 := svc.CreateStack(params)
 
-		if err2 != nil {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err2.Error())
-			return
-		}
+		check(err2)
 
 		// Pretty-print the response data.
 		fmt.Println(resp2)
 
-		fmt.Println(err.Error())
 		return
 	} else {
 		updateStack()
+
+		params := &cloudformation.UpdateStackInput{
+			StackName: aws.String(*stack), // Required
+			TemplateBody:      aws.String(templateString),
+		}
+		resp2, err2 := svc.UpdateStack(params)
+
+		check(err2)
+
+		// Pretty-print the response data.
+		fmt.Println(resp2)
+
+		return
 	}
 
 	// Pretty-print the response data.
@@ -91,4 +90,15 @@ func check(e error) {
 	if e != nil {
 		panic(e)
 	}
+}
+
+func getTemplateFileAsString() string {
+	content, err := ioutil.ReadFile("./cf-stack.template") // just pass the file name
+	if err != nil {
+		fmt.Print(content)
+	}
+
+	str := string(content)
+
+	return str
 }
