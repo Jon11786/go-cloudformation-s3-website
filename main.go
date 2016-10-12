@@ -4,86 +4,66 @@ import (
 	"fmt"
 	"flag"
 	"io/ioutil"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 )
+
+// Global variable to hold cloudformation pointer
+var svc *cloudformation.CloudFormation
 
 func main() {
 
-	stack, region := getCommandFlags()
+	// Get command params
+	stack, region, pathToTemplate := getCommandFlags()
 
+	//Create aws session
 	sess, err := session.NewSession()
 
+	//Panic if aws session fails
 	check(err)
 
-	svc := cloudformation.New(sess, &aws.Config{Region: aws.String(*region)})
+	//Create new cloudformation
+	svc = cloudformation.New(sess, &aws.Config{Region: aws.String(*region)})
 
-	params := &cloudformation.DescribeStacksInput{
-		NextToken: aws.String("NextToken"),
-		StackName: aws.String(*stack),
-	}
-	resp, err := svc.DescribeStacks(params)
+	//Get cloudformation template as a string
+	templateString := getTemplateFileAsString(pathToTemplate)
 
-	templateString := getTemplateFileAsString()
+	//Check if the stack already exists
+	stackExists := checkStackExists(stack)
 
-	if err != nil {
-		// Print the error, cast err to awserr.Error to get the Code and
-		// Message from an error.
-		createStack()
-
-		params := &cloudformation.CreateStackInput{
-			StackName: aws.String(*stack), // Required
-			TemplateBody:      aws.String(templateString),
-		}
-		resp2, err2 := svc.CreateStack(params)
-
-		check(err2)
-
-		// Pretty-print the response data.
-		fmt.Println(resp2)
-
-		return
-	} else {
-		updateStack()
-
-		params := &cloudformation.UpdateStackInput{
-			StackName: aws.String(*stack), // Required
-			TemplateBody:      aws.String(templateString),
-		}
-		resp2, err2 := svc.UpdateStack(params)
-
-		check(err2)
-
-		// Pretty-print the response data.
-		fmt.Println(resp2)
-
+	//If stack does not exist create new stack
+	if stackExists == false {
+		createStack(stack, templateString)
 		return
 	}
 
-	// Pretty-print the response data.
-	fmt.Println(resp)
+	//If stack already exists update existing stack
+	updateStack(stack, templateString)
+
+	return
+
 }
 
-func createStack() {
-	fmt.Println("creating")
-}
+func getCommandFlags() (*string, *string, *string) {
 
-func updateStack() {
-	fmt.Println("updating")
-}
-
-func getCommandFlags() (*string, *string) {
+	// Set variables that store flag data
 	stackPtr := flag.String("stack", "", "a string")
 	regionPtr := flag.String("region", "us-east-1", "a string")
+	pathPtr := flag.String("template", "./cf-stack.template", "a string")
 
 	flag.Parse()
 
-	fmt.Println("stack:", *stackPtr)
-	fmt.Println("region:", *regionPtr)
+	// If no stack name is passed exit
+	if *stackPtr == "" {
+		fmt.Print("No stack name set, exiting... ")
+		os.Exit(1)
+	}
 
-	return stackPtr, regionPtr
+	return stackPtr, regionPtr, pathPtr
 }
 
 func check(e error) {
@@ -92,13 +72,87 @@ func check(e error) {
 	}
 }
 
-func getTemplateFileAsString() string {
-	content, err := ioutil.ReadFile("./cf-stack.template") // just pass the file name
+func getTemplateFileAsString(pathToTemplate *string) string {
+	content, err := ioutil.ReadFile(*pathToTemplate) // just pass the file name
 	if err != nil {
 		fmt.Print(err.Error())
 	}
 
 	str := string(content)
 
+	params := &cloudformation.ValidateTemplateInput{
+		TemplateBody:  aws.String(str),
+	}
+
+	resp, err := svc.ValidateTemplate(params)
+
+	_ = resp
+
+	if err != nil {
+		awsError := err.(awserr.Error)
+		fmt.Println(awsError.Message())
+		os.Exit(2)
+	}
+
+	fmt.Println("Valid CloudFormation template found.")
+
 	return str
+}
+
+func checkStackExists(stackName *string) bool {
+
+	describeStackParams := &cloudformation.DescribeStacksInput{
+		NextToken: aws.String("NextToken"),
+		StackName: aws.String(*stackName),
+	}
+
+	resp, err := svc.DescribeStacks(describeStackParams)
+
+	_ = resp
+
+	if err != nil {
+		fmt.Print("Stack ", *stackName, " does not exist.")
+		return false
+	}
+
+	fmt.Println("Stack", *stackName, "already exists.")
+	return true
+}
+
+func createStack(stackName *string, templateString string) {
+	fmt.Println("Creating stack", *stackName)
+
+	createStackParams := &cloudformation.CreateStackInput{
+		StackName: aws.String(*stackName), // Required
+		TemplateBody:      aws.String(templateString),
+	}
+
+	resp, err := svc.CreateStack(createStackParams)
+
+	check(err)
+	// Pretty-print the response data.
+	fmt.Println(resp)
+
+	return
+}
+
+func updateStack(stackName *string, templateString string) {
+	fmt.Println("Updating stack", *stackName)
+
+	updateStackParams := &cloudformation.UpdateStackInput{
+		StackName: aws.String(*stackName), // Required
+		TemplateBody:      aws.String(templateString),
+	}
+	resp, err := svc.UpdateStack(updateStackParams)
+
+	if err != nil {
+		test := err.(awserr.Error)
+		fmt.Println(test.Message())
+		return
+	} else {
+		// Pretty-print the response data.
+		fmt.Println(resp)
+	}
+
+	return
 }
