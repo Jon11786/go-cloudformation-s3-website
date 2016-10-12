@@ -111,7 +111,7 @@ func checkStackExists(stackName *string) bool {
 	_ = resp
 
 	if err != nil {
-		fmt.Print("Stack ", *stackName, " does not exist.")
+		fmt.Println("Stack ", *stackName, " does not exist.")
 		return false
 	}
 
@@ -125,13 +125,23 @@ func createStack(stackName *string, templateString string) {
 	createStackParams := &cloudformation.CreateStackInput{
 		StackName: aws.String(*stackName), // Required
 		TemplateBody:      aws.String(templateString),
+		Parameters: []*cloudformation.Parameter{
+			{
+				ParameterKey:     aws.String("RootDomainName"),
+				ParameterValue:   aws.String("jon-hughes.co.uk"),
+			},
+		},
 	}
 
 	resp, err := svc.CreateStack(createStackParams)
 
-	check(err)
-	// Pretty-print the response data.
-	fmt.Println(resp)
+	_ = resp
+
+	if err != nil {
+		createError := err.(awserr.Error)
+		fmt.Println(createError.Message())
+		return
+	}
 
 	return
 }
@@ -142,17 +152,24 @@ func updateStack(stackName *string, templateString string) {
 	updateStackParams := &cloudformation.UpdateStackInput{
 		StackName: aws.String(*stackName), // Required
 		TemplateBody:      aws.String(templateString),
+		Parameters: []*cloudformation.Parameter{
+			{
+				ParameterKey:     aws.String("RootDomainName"),
+				ParameterValue:   aws.String("jon-hughes.co.uk"),
+			},
+		},
 	}
 	resp, err := svc.UpdateStack(updateStackParams)
 
 	if err != nil {
-		test := err.(awserr.Error)
-		fmt.Println(test.Message())
+		updateError := err.(awserr.Error)
+		fmt.Println(updateError.Message())
 		return
-	} else {
-		// Pretty-print the response data.
-		fmt.Println(resp)
 	}
+
+	fmt.Println(resp)
+
+	fmt.Println("Update stack complete")
 
 	return
 }
