@@ -18,7 +18,7 @@ var svc *cloudformation.CloudFormation
 func main() {
 
 	// Get command params
-	stack, region, pathToTemplate := getCommandFlags()
+	stack, region, pathToTemplate, domain := getCommandFlags()
 
 	//Create aws session
 	sess, err := session.NewSession()
@@ -37,23 +37,24 @@ func main() {
 
 	//If stack does not exist create new stack
 	if stackExists == false {
-		createStack(stack, templateString)
+		createStack(stack, templateString, domain)
 		return
 	}
 
 	//If stack already exists update existing stack
-	updateStack(stack, templateString)
+	updateStack(stack, templateString, domain)
 
 	return
 
 }
 
-func getCommandFlags() (*string, *string, *string) {
+func getCommandFlags() (*string, *string, *string, *string) {
 
 	// Set variables that store flag data
 	stackPtr := flag.String("stack", "", "a string")
 	regionPtr := flag.String("region", "us-east-1", "a string")
 	pathPtr := flag.String("template", "./cf-stack.template", "a string")
+	domainPtr := flag.String("domain", "", "a string")
 
 	flag.Parse()
 
@@ -63,7 +64,12 @@ func getCommandFlags() (*string, *string, *string) {
 		os.Exit(1)
 	}
 
-	return stackPtr, regionPtr, pathPtr
+	if *domainPtr == "" {
+		fmt.Print("No domain name set, exiting... ")
+		os.Exit(1)
+	}
+
+	return stackPtr, regionPtr, pathPtr, domainPtr
 }
 
 func check(e error) {
@@ -119,7 +125,7 @@ func checkStackExists(stackName *string) bool {
 	return true
 }
 
-func createStack(stackName *string, templateString string) {
+func createStack(stackName *string, templateString string, domain *string) {
 	fmt.Println("Creating stack", *stackName)
 
 	createStackParams := &cloudformation.CreateStackInput{
@@ -128,7 +134,7 @@ func createStack(stackName *string, templateString string) {
 		Parameters: []*cloudformation.Parameter{
 			{
 				ParameterKey:     aws.String("RootDomainName"),
-				ParameterValue:   aws.String("jon-hughes.co.uk"),
+				ParameterValue:   aws.String(*domain),
 			},
 		},
 	}
@@ -146,7 +152,7 @@ func createStack(stackName *string, templateString string) {
 	return
 }
 
-func updateStack(stackName *string, templateString string) {
+func updateStack(stackName *string, templateString string, domain *string) {
 	fmt.Println("Updating stack", *stackName)
 
 	updateStackParams := &cloudformation.UpdateStackInput{
@@ -155,7 +161,7 @@ func updateStack(stackName *string, templateString string) {
 		Parameters: []*cloudformation.Parameter{
 			{
 				ParameterKey:     aws.String("RootDomainName"),
-				ParameterValue:   aws.String("jon-hughes.co.uk"),
+				ParameterValue:   aws.String(*domain),
 			},
 		},
 	}
