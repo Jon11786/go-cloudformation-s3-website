@@ -24,7 +24,9 @@ func main() {
 	sess, err := session.NewSession()
 
 	//Panic if aws session fails
-	check(err)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	//Create new cloudformation
 	svc = cloudformation.New(sess, &aws.Config{Region: aws.String(*region)})
@@ -70,12 +72,6 @@ func getCommandFlags() (*string, *string, *string, *string) {
 	}
 
 	return stackPtr, regionPtr, pathPtr, domainPtr
-}
-
-func check(e error) {
-	if e != nil {
-		panic(e.Error())
-	}
 }
 
 func getTemplateFileAsString(pathToTemplate *string) string {
